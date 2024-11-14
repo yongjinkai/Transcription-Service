@@ -1,0 +1,70 @@
+body {
+  font-family: "Roboto", sans-serif;
+  background-color: #f4f4f9;
+  color: #333;
+}
+
+.App {
+  text-align: center;
+}
+
+h1,
+p {
+  text-align: center;
+}
+
+.buttonsDiv {
+  text-align: center;
+}
+
+.buttonsDiv button {
+  margin: 0 2rem 2rem 0;
+}
+h1 {
+  /* font-size: 24px; */
+  /* font-weight: bold; */
+  color: #333 !important;
+}
+
+button {
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #fff;
+  background-color: #007bff;
+  border: none;
+  border-radius: 5px !important;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  overflow: hidden;
+  color: black !important;
+}
+
+th,
+td {
+  padding: 12px 15px;
+  text-align: left;
+}
+
+th {
+  background-color: #007bff;
+  /* color: #fff; */
+}
+
+tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+tr:hover {
+  background-color: #f1f1f1;
+}

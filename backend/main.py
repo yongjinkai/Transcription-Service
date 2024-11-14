@@ -2,13 +2,24 @@ from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
 from setup_db import initialize_database
 from transcriber import transcribe
-import sqlite3
+import sqlite3,os
 import uvicorn
-
+from fastapi.middleware.cors import CORSMiddleware
 DATABASE_PATH = "transcription.db"
 
-initialize_database()  # initialises the database in the backend folder
 app = FastAPI()
+
+# enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+db_filename = os.path.join(os.path.dirname(__file__), "transcription.db")
+
+initialize_database(db_filename)  # initialises the database in the backend folder
 
 
 class Transcription(BaseModel):
@@ -18,8 +29,8 @@ class Transcription(BaseModel):
     created_at: str = None
 
 
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE_PATH)
+def get_db_connection(path):
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row  # Enables dictionary-like access to rows
     return conn
 
@@ -28,50 +39,59 @@ def get_db_connection():
 def health_check():
     return {"status": "healthy"}
 
-
-@app.post("/transcribe", response_model=Transcription)
-async def create_transcription(file: UploadFile = File(...)):
-    file_content = await file.read()
-    file_name = file.filename
-    transcription = transcribe(file_content)
-
-    conn = get_db_connection()
+# POST method for single/batched file transcription. Expected return is a list of Transcription objects
+@app.post("/transcribe", response_model=list[Transcription])
+async def create_transcription(files: list[UploadFile] = File(...)):
+    transcriptions = []
+    conn = get_db_connection(DATABASE_PATH)
     cursor = conn.cursor()
-
-    # returns existing record if filename exists
-    cursor.execute(
-        "SELECT * FROM transcriptions WHERE file_name = ?", (file_name,)
-    )
-    existing_record = cursor.fetchone()
-    if existing_record:
-        print("record exists!")
-        return {
-            "id":existing_record['id'],
-            'file_name':existing_record['file_name'],
-            'transcription':existing_record['transcription'],
-            'created_at':existing_record['created_at']
-        }
     
-    cursor.execute(
-        "INSERT INTO transcriptions (file_name, transcription) VALUES (?, ?)",
-        (file_name, transcription),
-    )
+    for file in files:
+       
+        file_content = await file.read()
+        file_name = file.filename
+        print(file_name)
+
+        # fetches existing record from database if filename exists
+        cursor.execute(
+            "SELECT * FROM transcriptions WHERE file_name = ?", (file_name,)
+        )
+        existing_record = cursor.fetchone()
+        if existing_record:
+            transcriptions.append({
+                "id": existing_record['id'],
+                'file_name': existing_record['file_name'],
+                'transcription': existing_record['transcription'],
+                'created_at': existing_record['created_at']
+            })
+        else:
+            try:
+                transcription = transcribe(file_content)
+            #whisper endpoint throws ValueError if filetype cannot be transcribed
+            except ValueError: 
+                raise HTTPException(status_code=400, detail="invalid file")
+            cursor.execute(
+                "INSERT INTO transcriptions (file_name, transcription) VALUES (?, ?)",
+                (file_name, transcription),
+            )
+
+            new_id = cursor.lastrowid
+            transcriptions.append({
+                "id": new_id,
+                "file_name": file_name,
+                "transcription": transcription,
+                "created_at": "Just Now"
+            })
     conn.commit()
-    new_id = cursor.lastrowid
     cursor.close()
     conn.close()
 
-    return {
-        "id": new_id,
-        "file_name": file_name,
-        "transcription": transcription,
-        "created_at": "Just Now"
-    }
+    return transcriptions
 
-
+#GET method to get all transcriptions
 @app.get("/transcriptions")
 def get_all_transcriptions():
-    conn = get_db_connection()
+    conn = get_db_connection(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute(
         "SELECT * FROM transcriptions"
@@ -82,12 +102,12 @@ def get_all_transcriptions():
     conn.close()
     return transcriptions
 
-
+# Search method to search database by filename
 @app.get("/search")
 def search_file_name(query: str):
-    conn = get_db_connection()
+    conn = get_db_connection(DATABASE_PATH)
     cursor = conn.cursor()
-    print(f"this is my query: {query}")
+
     cursor.execute(
         "SELECT * FROM transcriptions WHERE file_name LIKE ?", (f"%{query}%",)
     )
@@ -106,6 +126,6 @@ def search_file_name(query: str):
     ]
     return transcriptions
 
-
+# Main function call to start backend server on local host port 8000
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
