@@ -7,7 +7,7 @@ Transcription Service is a simple app where the user can upload single/batched a
 Source code is separated into 2 folders: frontend and backend. Audio_samples folder included in backend folder for testing purposes. Architecture.pdf is to describe service components.
 
 ## Initial Docker configuration 
-
+The app is intended to be ran in a Docker container. However, if all the required modules are installed, one may run it without Docker.
 Inside the backend folder, perform the following:
 
 1. Build backend docker image with the name transcribe-be (or any other name):  
